@@ -34,6 +34,8 @@ const fetchData = async () => {
 };
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+    // --- ДИАГНОСТИКА ФРОНТЕНДА №2 ---
         fetchData();
     }, []);
 
