@@ -1,15 +1,28 @@
-// src/components/ProductCard.jsx (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
-import React, { useContext } from 'react'; // <-- ВОТ ИСПРАВЛЕНИЕ
-import { Card, Button, Typography, Tag } from 'antd';
+// src/components/ProductCard.jsx (ВЕРСИЯ С ПОДДЕРЖКОЙ BLOB И ПОДСКАЗКОЙ)
+import React, { useContext } from 'react';
+import { Card, Button, Typography, Tag, Tooltip } from 'antd'; // <-- Добавили Tooltip
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import CartContext from '../context/CartContext';
 
 const { Meta } = Card;
 const { Text } = Typography;
 
+// Функция-помощник для конвертации BLOB в Base64
+const blobToBase64 = (blobData) => {
+    if (!blobData || !blobData.data) {
+        return 'https://via.placeholder.com/300'; // Заглушка, если данных нет
+    }
+    // `blobData.data` - это массив байтов. Превращаем его в строку.
+    const binaryString = String.fromCharCode.apply(null, blobData.data);
+    // Кодируем строку в base64
+    const base64String = btoa(binaryString);
+    // Возвращаем готовый URL для тега <img>
+    return `data:image/jpeg;base64,${base64String}`;
+};
+
+
 const ProductCard = ({ product, userRole }) => {
-    // Теперь эта строка будет работать
-    const { addToCart } = useContext(CartContext); 
+    const { addToCart } = useContext(CartContext);
 
     const actions = [
         (!userRole || userRole === 'client') && (
@@ -23,14 +36,24 @@ const ProductCard = ({ product, userRole }) => {
         )
     ].filter(Boolean);
 
+    // Конвертируем картинку для отображения
+    const imageUrl = blobToBase64(product.image);
+
     return (
         <Card
             hoverable
-            cover={<img alt={product.name} src={product.image_url || 'https://via.placeholder.com/300'} style={{ height: 200, objectFit: 'cover' }} />}
+            cover={<img alt={product.name} src={imageUrl} style={{ height: 200, objectFit: 'cover' }} />}
             actions={actions}
         >
             <Meta
-                title={product.name}
+                // Оборачиваем заголовок в Tooltip для подсказки
+                title={
+                    <Tooltip title={product.name}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {product.name}
+                        </div>
+                    </Tooltip>
+                }
                 description={<Tag color="blue">{product.category_name || 'Без категории'}</Tag>}
             />
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
