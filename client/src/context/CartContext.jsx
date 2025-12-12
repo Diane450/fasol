@@ -1,4 +1,4 @@
-// src/context/CartContext.jsx
+// src/context/CartContext.jsx (ФИНАЛЬНАЯ ВЕРСИЯ С ВАЛИДАЦИЕЙ)
 import React, { createContext, useState, useEffect } from 'react';
 import { message } from 'antd';
 
@@ -7,7 +7,6 @@ const CartContext = createContext();
 export const CartProvider = ({ children }) => {
     const [cartItems, setCartItems] = useState([]);
 
-    // При первой загрузке сайта, пытаемся загрузить корзину из localStorage
     useEffect(() => {
         const storedCart = localStorage.getItem('cart');
         if (storedCart) {
@@ -15,7 +14,6 @@ export const CartProvider = ({ children }) => {
         }
     }, []);
 
-    // Функция для обновления и localStorage, и состояния
     const updateCart = (newCartItems) => {
         setCartItems(newCartItems);
         localStorage.setItem('cart', JSON.stringify(newCartItems));
@@ -23,27 +21,46 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = (product) => {
         const existingItem = cartItems.find(item => item.id === product.id);
+        const newQuantity = (existingItem ? existingItem.quantity : 0) + 1;
+
+        // Проверка №1: Не даем добавить больше, чем есть на складе
+        if (newQuantity > product.quantity) {
+            message.warning(`Больше нельзя добавить. На складе всего ${product.quantity} шт.`);
+            return;
+        }
 
         if (existingItem) {
-            // Если товар уже есть, увеличиваем количество
             const newCartItems = cartItems.map(item =>
                 item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
             );
             updateCart(newCartItems);
         } else {
-            // Если товара нет, добавляем его с количеством 1
-            updateCart([...cartItems, { ...product, quantity: 1 }]);
+            // При первом добавлении запоминаем, сколько всего было на складе
+            updateCart([...cartItems, { ...product, quantity: 1, stock_quantity: product.quantity }]);
         }
         message.success(`${product.name} добавлен в корзину!`);
     };
 
     const removeFromCart = (productId) => {
-        const newCartItems = cartItems.filter(item => item.id !== productId);
-        updateCart(newCartItems);
+        updateCart(cartItems.filter(item => item.id !== productId));
     };
 
     const updateQuantity = (productId, quantity) => {
-        const newQuantity = Math.max(1, quantity); // Количество не может быть меньше 1
+        const itemInCart = cartItems.find(item => item.id === productId);
+        if (!itemInCart) return;
+
+        // Проверка №2: Не даем установить количество больше, чем было на складе
+        if (quantity > itemInCart.stock_quantity) {
+            message.warning(`Нельзя заказать больше, чем на складе (${itemInCart.stock_quantity} шт.)`);
+            // Устанавливаем максимально доступное значение
+            const newCartItems = cartItems.map(item =>
+                item.id === productId ? { ...item, quantity: itemInCart.stock_quantity } : item
+            );
+            updateCart(newCartItems);
+            return;
+        }
+        
+        const newQuantity = Math.max(1, quantity); // Не даем установить меньше 1
         const newCartItems = cartItems.map(item =>
             item.id === productId ? { ...item, quantity: newQuantity } : item
         );

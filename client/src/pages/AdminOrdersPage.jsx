@@ -13,14 +13,23 @@ const AdminOrdersPage = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // ИСПРАВЛЕНО: Добавлены полные URL к серверу
             const [ordersRes, statusesRes] = await Promise.all([
                 axios.get('http://localhost:5000/api/orders'),
                 axios.get('http://localhost:5000/api/order-statuses')
             ]);
             
-            setOrders(ordersRes.data || []);
+            // Для каждого заказа из списка запрашиваем его детали
+            const ordersWithDetails = await Promise.all(
+                ordersRes.data.map(order => 
+                    axios.get(`http://localhost:5000/api/orders/${order.id}`).then(res => res.data)
+                )
+            );
+            
+            // --- ИСПРАВЛЕНИЕ ---
+            // Сохраняем в состояние именно массив с деталями
+            setOrders(ordersWithDetails || []); 
             setStatuses(statusesRes.data || []);
+
         } catch (error) {
             message.error('Не удалось загрузить данные о заказах');
             console.error(error);
@@ -35,17 +44,30 @@ const AdminOrdersPage = () => {
 
     const handleStatusChange = async (orderId, newStatusId) => {
         try {
-            // ИСПРАВЛЕНО: Добавлен полный URL к серверу
             await axios.patch(`http://localhost:5000/api/orders/${orderId}/status`, { statusId: newStatusId });
             message.success('Статус заказа успешно обновлен!');
-            // Просто обновляем данные в состоянии, чтобы не перезагружать всё с сервера
+            
+            // Обновляем статус локально для мгновенного отклика интерфейса
             setOrders(prevOrders => prevOrders.map(order => 
-                order.id === orderId ? { ...order, status_id: newStatusId, status: statuses.find(s => s.id === newStatusId)?.label } : order
+                order.id === orderId 
+                ? { ...order, status_id: newStatusId, status: statuses.find(s => s.id === newStatusId)?.label } 
+                : order
             ));
         } catch (error) {
             message.error('Ошибка при обновлении статуса');
             console.error(error);
         }
+    };
+
+    const expandedRowRender = (record) => {
+        const columns = [
+            { title: 'Товар', dataIndex: 'product_name', key: 'product_name' },
+            { title: 'Количество', dataIndex: 'quantity', key: 'quantity', render: text => `${text} шт.` },
+            { title: 'Цена за шт.', dataIndex: 'price_at_purchase', key: 'price', render: text => `${text} ₽` },
+            { title: 'Сумма', key: 'total', render: (_, item) => `${(item.quantity * item.price_at_purchase).toFixed(2)} ₽`},
+        ];
+        // Проверяем, есть ли вообще items, на всякий случай
+        return <Table columns={columns} dataSource={record.items || []} pagination={false} rowKey="product_name" />;
     };
 
     const columns = [
@@ -71,10 +93,10 @@ const AdminOrdersPage = () => {
             sorter: (a, b) => a.total_price - b.total_price
         },
         { 
-            title: 'Текущий статус', 
+            title: 'Статус', 
             dataIndex: 'status', 
             key: 'status',
-            render: (text) => <Tag color="blue">{text}</Tag> // Упростил для надежности
+            render: (text, record) => <Tag color={record.status_color || 'default'}>{text}</Tag>
         },
         {
             title: 'Изменить статус',
@@ -107,6 +129,7 @@ const AdminOrdersPage = () => {
                 dataSource={orders}
                 rowKey="id"
                 bordered
+                expandable={{ expandedRowRender }}
             />
         </div>
     );

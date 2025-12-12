@@ -9,27 +9,29 @@ const ProfilePage = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [profileRes, ordersRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/profile'),
-                axios.get('http://localhost:5000/api/orders/my')
-            ]);
-            
-            setProfile(profileRes.data || null);
-            setOrders(ordersRes.data || []);
-            
-            if (profileRes.data) {
-                form.setFieldsValue(profileRes.data);
-            }
-        } catch (error) {
-            console.error("Ошибка загрузки данных профиля:", error);
-            message.error('Не удалось загрузить данные профиля. Возможно, нужно войти заново.');
-        } finally {
-            setLoading(false);
+// src/pages/ProfilePage.jsx (обновленная fetchData)
+const fetchData = async () => {
+    setLoading(true);
+    try {
+        const profileRes = await axios.get('http://localhost:5000/api/profile');
+        const ordersRes = await axios.get('http://localhost:5000/api/orders/my');
+
+        // Для каждого заказа сразу загружаем его детали
+        const ordersWithDetails = await Promise.all(
+            ordersRes.data.map(order => 
+                axios.get(`http://localhost:5000/api/orders/${order.id}`).then(res => res.data)
+            )
+        );
+        
+        setProfile(profileRes.data || null);
+        setOrders(ordersWithDetails || []); // Сохраняем заказы уже с деталями
+        
+        if (profileRes.data) {
+            form.setFieldsValue(profileRes.data);
         }
-    };
+    } catch (error) { /* ... */ } 
+    finally { setLoading(false); }
+};
 
     useEffect(() => {
         fetchData();
@@ -44,7 +46,25 @@ const ProfilePage = () => {
             message.error('Ошибка обновления профиля');
         }
     };
-    
+
+const expandedRowRender = (record) => {
+        const columns = [
+            { title: 'Товар', dataIndex: 'product_name', key: 'product_name' },
+            { title: 'Количество', dataIndex: 'quantity', key: 'quantity', render: (text) => `${text} шт.` },
+            { title: 'Цена за шт.', dataIndex: 'price_at_purchase', key: 'price', render: (text) => `${text} ₽` },
+            { title: 'Сумма', key: 'total', render: (_, item) => `${(item.quantity * item.price_at_purchase).toFixed(2)} ₽`},
+        ];
+
+        // Запрашиваем детали заказа при раскрытии
+        // Для простоты можно и сразу грузить, но так эффективнее
+        if (!record.items) {
+            // Можно добавить логику загрузки по клику, если заказов очень много
+            return <Spin />;
+        }
+
+        return <Table columns={columns} dataSource={record.items} pagination={false} rowKey="product_name" />;
+    };
+
     const orderColumns = [
         { title: '№ Заказа', dataIndex: 'id', key: 'id' },
         { title: 'Дата', dataIndex: 'created_at', key: 'date', render: (text) => new Date(text).toLocaleDateString() },
@@ -80,10 +100,15 @@ const ProfilePage = () => {
     );
 
     // Вкладка 2: История заказов
-    const ordersTabContent = (
+const ordersTabContent = (
         <div>
             <Typography.Title level={4}>История ваших заказов</Typography.Title>
-            <Table columns={orderColumns} dataSource={orders} rowKey="id" />
+            <Table 
+                columns={orderColumns} 
+                dataSource={orders} 
+                rowKey="id"
+                expandable={{ expandedRowRender }} // <-- Включаем раскрытие
+            />
         </div>
     );
 

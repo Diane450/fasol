@@ -318,47 +318,67 @@ app.get('/api/order-statuses', authMiddleware, async (req, res) => {
 
 // POST /api/orders - Создание нового заказа
 app.post('/api/orders', authMiddleware, async (req, res) => {
-    // Начинаем транзакцию, чтобы все запросы выполнились успешно, либо ни один
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        const { store_id, items, total_price } = req.body;
-        const user_id = req.user.id; // Берем ID пользователя из токена
+        const { store_id, items } = req.body;
+        const user_id = req.user.id;
 
-        // 1. Создаем "шапку" заказа в таблице `orders`
+        if (!store_id || !items || items.length === 0) {
+            return res.status(400).json({ message: 'Некорректные данные заказа' });
+        }
+
+        // --- ГЛАВНАЯ ПРОВЕРКА ОСТАТКОВ ---
+        for (const item of items) {
+            const [stockRows] = await connection.query(
+                'SELECT p.name, sp.quantity FROM store_products sp JOIN products p ON sp.product_id = p.id WHERE sp.product_id = ? AND sp.store_id = ? FOR UPDATE',
+                [item.product_id, store_id]
+            );
+
+            if (stockRows.length === 0 || stockRows[0].quantity < item.quantity) {
+                await connection.rollback();
+                const productName = stockRows.length > 0 ? stockRows[0].name : `Товар #${item.product_id}`;
+                return res.status(409).json({ message: `Товара "${productName}" недостаточно на складе! В наличии: ${stockRows[0]?.quantity || 0} шт.` });
+            }
+        }
+
+        // --- РАСЧЕТ СУММЫ НА СЕРВЕРЕ ---
+        let calculatedTotalPrice = 0;
+        for (const item of items) {
+            const [productRows] = await connection.query('SELECT price FROM products WHERE id = ?', [item.product_id]);
+            calculatedTotalPrice += productRows[0].price * item.quantity;
+        }
+
+        // --- СОЗДАНИЕ ЗАКАЗА ---
         const [orderResult] = await connection.query(
             'INSERT INTO orders (user_id, store_id, total_price, status_id) VALUES (?, ?, ?, ?)',
-            [user_id, store_id, total_price, 1] // status_id = 1 (Новый)
+            [user_id, store_id, calculatedTotalPrice, 1]
         );
         const orderId = orderResult.insertId;
 
-        // 2. Добавляем товары из заказа в таблицу `order_items`
+        // --- СОЗДАНИЕ ПОЗИЦИЙ ЗАКАЗА И ОБНОВЛЕНИЕ ОСТАТКОВ ---
         for (const item of items) {
+            const [productRows] = await connection.query('SELECT price FROM products WHERE id = ?', [item.product_id]);
             await connection.query(
                 'INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase) VALUES (?, ?, ?, ?)',
-                [orderId, item.product_id, item.quantity, item.price_at_purchase]
+                [orderId, item.product_id, item.quantity, productRows[0].price]
             );
-
-            // 3. УМЕНЬШАЕМ КОЛИЧЕСТВО ТОВАРА НА СКЛАДЕ (очень важный шаг для диплома!)
             await connection.query(
                 'UPDATE store_products SET quantity = quantity - ? WHERE product_id = ? AND store_id = ?',
                 [item.quantity, item.product_id, store_id]
             );
         }
 
-        // Если все запросы выше прошли без ошибок, подтверждаем транзакцию
         await connection.commit();
         res.status(201).json({ message: 'Заказ успешно создан', orderId });
 
     } catch (error) {
-        // Если хоть один запрос упал, откатываем все изменения
         await connection.rollback();
         console.error("Ошибка при создании заказа:", error);
         res.status(500).json({ message: 'Ошибка сервера при создании заказа' });
     } finally {
-        // Всегда освобождаем соединение
-        connection.release();
+        if (connection) connection.release();
     }
 });
 
@@ -518,6 +538,49 @@ app.put('/api/admin/stock/:id', authMiddleware, checkAdminRole, async (req, res)
         res.json({ message: 'Количество товара обновлено' });
     } catch (err) {
         console.error("Ошибка при обновлении остатков:", err);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// GET /api/orders/:id - Получить детали конкретного заказа
+app.get('/api/orders/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role, id: userId } = req.user; // Получаем роль и ID пользователя из токена
+
+        // 1. Получаем "шапку" заказа
+        const [orderRows] = await db.query(
+            `SELECT o.*, s.address as store_name, u.first_name, u.last_name 
+             FROM orders o 
+             JOIN stores s ON o.store_id = s.id
+             JOIN users u ON o.user_id = u.id
+             WHERE o.id = ?`, [id]
+        );
+        
+        if (orderRows.length === 0) {
+            return res.status(404).json({ message: 'Заказ не найден' });
+        }
+
+        const order = orderRows[0];
+        
+        // 2. Проверка прав: Админ/менеджер может видеть любой заказ. Клиент - только свой.
+        if (role === 'client' && order.user_id !== userId) {
+            return res.status(403).json({ message: 'Доступ запрещен' });
+        }
+
+        // 3. Получаем список товаров в этом заказе
+        const [orderItems] = await db.query(
+            `SELECT oi.quantity, oi.price_at_purchase, p.name as product_name 
+             FROM order_items oi
+             JOIN products p ON oi.product_id = p.id
+             WHERE oi.order_id = ?`, [id]
+        );
+
+        // 4. Собираем и отправляем полный ответ
+        res.json({ ...order, items: orderItems });
+
+    } catch (err) {
+        console.error("Ошибка при получении деталей заказа:", err);
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });

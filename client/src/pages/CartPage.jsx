@@ -1,4 +1,4 @@
-// src/pages/CartPage.jsx (ПОЛНАЯ ФИНАЛЬНАЯ ВЕРСИЯ)
+// src/pages/CartPage.jsx (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
 import React, { useContext } from 'react';
 import { Typography, List, Button, Avatar, InputNumber, Row, Col, Statistic, Card, Empty, message } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
@@ -9,9 +9,7 @@ import AuthContext from '../context/AuthContext';
 
 const { Title, Text } = Typography;
 
-// Функция-помощник для конвертации BLOB в Base64
 const blobToBase64 = (blobData) => {
-    // ... (код конвертера остается без изменений)
     if (!blobData || !blobData.data) return null;
     const CHUNK_SIZE = 0x8000;
     const bytes = blobData.data;
@@ -21,9 +19,7 @@ const blobToBase64 = (blobData) => {
     }
     try {
         return `data:image/jpeg;base64,${btoa(binary)}`;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 };
 
 const CartPage = () => {
@@ -32,39 +28,32 @@ const CartPage = () => {
     const { selectedStore } = useOutletContext();
     const navigate = useNavigate();
 
-    // Считаем общую стоимость
     const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+    // Функция handleCheckout находится прямо внутри компонента, где и должна быть
     const handleCheckout = async () => {
         if (!isAuthenticated) {
             message.warning('Пожалуйста, войдите в систему, чтобы оформить заказ.');
             return;
         }
-
         if (!selectedStore) {
             message.error('Магазин не выбран. Пожалуйста, вернитесь в каталог и выберите магазин.');
             return;
         }
-
         try {
+            // Мы больше не передаем total_price, так как сервер считает его сам
             const orderData = {
-                store_id: selectedStore, // Используем реальный ID магазина
+                store_id: selectedStore,
                 items: cartItems.map(item => ({
                     product_id: item.id,
                     quantity: item.quantity,
-                    price_at_purchase: item.price
                 })),
-                total_price: totalPrice
             };
-
             await axios.post('http://localhost:5000/api/orders', orderData);
-            
             message.success('Ваш заказ успешно оформлен!');
             clearCart();
             navigate('/profile');
-
         } catch (error) {
-            console.error("Ошибка оформления заказа:", error);
             message.error(error.response?.data?.message || 'Не удалось оформить заказ.');
         }
     };
@@ -84,21 +73,13 @@ const CartPage = () => {
         <div>
             <Title level={2} style={{ marginBottom: 24 }}>Ваша корзина</Title>
             <Row gutter={[24, 24]}>
-                {/* Список товаров в корзине */}
                 <Col xs={24} lg={16}>
                     <List
                         itemLayout="horizontal"
                         dataSource={cartItems}
                         renderItem={(item) => (
                             <List.Item
-                                actions={[
-                                    <Button
-                                        type="text"
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => removeFromCart(item.id)}
-                                    />
-                                ]}
+                                actions={[<Button type="text" danger icon={<DeleteOutlined />} onClick={() => removeFromCart(item.id)} />]}
                             >
                                 <List.Item.Meta
                                     avatar={<Avatar src={blobToBase64(item.image) || '/placeholder.png'} />}
@@ -108,6 +89,7 @@ const CartPage = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <InputNumber
                                         min={1}
+                                        max={item.stock_quantity}
                                         value={item.quantity}
                                         onChange={(value) => updateQuantity(item.id, value)}
                                     />
@@ -117,8 +99,6 @@ const CartPage = () => {
                         )}
                     />
                 </Col>
-
-                {/* Итоги заказа */}
                 <Col xs={24} lg={8}>
                     <Card title="Итоги заказа" bordered={false} style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)' }}>
                         <Statistic title="Общая стоимость" value={totalPrice} precision={2} suffix="₽" />
