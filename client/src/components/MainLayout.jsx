@@ -18,7 +18,7 @@ const MainLayout = () => {
 
     useEffect(() => {
         // Загружаем список всех магазинов для выпадающего списка
-        axios.get('http://localhost:5000/api/stores')
+        axios.get(`${import.meta.env.VITE_API_URL}/api/stores`)
             .then(response => {
                 setStores(response.data);
                 // Если пользователь не менеджер и магазин еще не выбран, ставим первый из списка

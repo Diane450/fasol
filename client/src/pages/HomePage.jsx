@@ -40,7 +40,7 @@ const HomePage = () => {
 
     // Загрузка категорий
     useEffect(() => {
-        axios.get('http://localhost:5000/api/categories')
+        axios.get(`${import.meta.env.VITE_API_URL}/api/categories`)
             .then(response => setCategories(response.data))
             .catch(error => console.error("Ошибка загрузки категорий:", error));
     }, []);
@@ -61,7 +61,7 @@ const HomePage = () => {
         params.append('sortBy', sortBy);
         params.append('order', order);
         
-        axios.get(`http://localhost:5000/api/products?${params.toString()}`)
+        axios.get(`${import.meta.env.VITE_API_URL}/api/products?${params.toString()}`)
             .then(response => {
                 setProducts(response.data);
             })

@@ -1,10 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Импортируем наше подключение
 const authMiddleware = require('./auth.middleware');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'your-super-secret-key-that-should-be-in-env-file'; // В реальном проекте это должно быть в .env!
+const JWT_SECRET = process.env.JWT_SECRET;
 const multer = require('multer'); // Библиотека для загрузки файлов
 const upload = multer({ storage: multer.memoryStorage() }); // Храним файл в памяти перед записью в BLOB
 const app = express();

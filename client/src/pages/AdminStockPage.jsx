@@ -43,7 +43,7 @@ const AdminStockPage = () => {
     const fetchData = async (params = {}) => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:5000/api/admin/stock', { params });
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/admin/stock`, { params });
             setData(response.data);
         } catch (error) {
             message.error('Не удалось загрузить данные склада');
@@ -74,7 +74,7 @@ const AdminStockPage = () => {
     const save = async (id) => {
         try {
             const row = await form.validateFields();
-            await axios.put(`http://localhost:5000/api/admin/stock/${id}`, { quantity: row.quantity });
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/admin/stock/${id}`, { quantity: row.quantity });
             
             const newData = [...data];
             const index = newData.findIndex((item) => id === item.id);

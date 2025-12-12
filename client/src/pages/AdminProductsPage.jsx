@@ -18,7 +18,7 @@ const AdminProductsPage = () => {
     const fetchData = async (params = {}) => {
         setLoading(true);
         try {
-            const productsRes = await axios.get('http://localhost:5000/api/admin/products', { params });
+            const productsRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/admin/products`, { params });
             setProducts(productsRes.data);
         } catch (error) {
             message.error('Не удалось загрузить товары');
@@ -31,8 +31,8 @@ const AdminProductsPage = () => {
         const fetchDirectories = async () => {
             try {
                 const [categoriesRes, storesRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/categories'),
-                    axios.get('http://localhost:5000/api/stores'),
+                    axios.get(`${import.meta.env.VITE_API_URL}/api/categories`),
+                    axios.get(`${import.meta.env.VITE_API_URL}/api/stores`),
                 ]);
                 setCategories(categoriesRes.data);
                 setStores(storesRes.data);
@@ -65,7 +65,7 @@ const AdminProductsPage = () => {
 
     const handleDelete = async (id) => {
         try {
-            await axios.delete(`http://localhost:5000/api/admin/products/${id}`);
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/admin/products/${id}`);
             message.success('Товар успешно удален');
             fetchData();
         } catch (error) {
@@ -88,10 +88,10 @@ const AdminProductsPage = () => {
 
             try {
                 if (editingProduct) {
-                    await axios.put(`http://localhost:5000/api/admin/products/${editingProduct.id}`, formData);
+                    await axios.put(`${import.meta.env.VITE_API_URL}/api/admin/products/${editingProduct.id}`, formData);
                     message.success('Товар успешно обновлен');
                 } else {
-                    await axios.post('http://localhost:5000/api/admin/products', formData);
+                    await axios.post(`${import.meta.env.VITE_API_URL}/api/admin/products`, formData);
                     message.success('Товар успешно создан');
                 }
                 setIsModalVisible(false);

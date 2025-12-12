@@ -44,7 +44,6 @@ function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        {/* 2. ПЕРЕДАЕМ ЯЗЫКОВОЙ ПАКЕТ В CONFIGPROVIDER */}
         <ConfigProvider theme={myTheme} locale={ruRU}>
           <BrowserRouter>
             <Routes>

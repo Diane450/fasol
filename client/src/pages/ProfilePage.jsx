@@ -13,13 +13,13 @@ const ProfilePage = () => {
 const fetchData = async () => {
     setLoading(true);
     try {
-        const profileRes = await axios.get('http://localhost:5000/api/profile');
-        const ordersRes = await axios.get('http://localhost:5000/api/orders/my');
+        const profileRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/profile`);
+        const ordersRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/orders/my`);
 
         // Для каждого заказа сразу загружаем его детали
         const ordersWithDetails = await Promise.all(
             ordersRes.data.map(order => 
-                axios.get(`http://localhost:5000/api/orders/${order.id}`).then(res => res.data)
+                axios.get(`${import.meta.env.VITE_API_URL}/api/orders/${order.id}`).then(res => res.data)
             )
         );
         
@@ -39,7 +39,7 @@ const fetchData = async () => {
 
     const onFinishUpdateProfile = async (values) => {
         try {
-            await axios.put('http://localhost:5000/api/profile', values);
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/profile`, values);
             message.success('Профиль успешно обновлен!');
             fetchData();
         } catch (error) {

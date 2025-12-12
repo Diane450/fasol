@@ -14,14 +14,14 @@ const AdminOrdersPage = () => {
         setLoading(true);
         try {
             const [ordersRes, statusesRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/orders'),
-                axios.get('http://localhost:5000/api/order-statuses')
+                axios.get(`${import.meta.env.VITE_API_URL}/api/orders`),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/order-statuses`)
             ]);
             
             // Для каждого заказа из списка запрашиваем его детали
             const ordersWithDetails = await Promise.all(
                 ordersRes.data.map(order => 
-                    axios.get(`http://localhost:5000/api/orders/${order.id}`).then(res => res.data)
+                    axios.get(`${import.meta.env.VITE_API_URL}/api/orders/${order.id}`).then(res => res.data)
                 )
             );
             
@@ -44,7 +44,7 @@ const AdminOrdersPage = () => {
 
     const handleStatusChange = async (orderId, newStatusId) => {
         try {
-            await axios.patch(`http://localhost:5000/api/orders/${orderId}/status`, { statusId: newStatusId });
+            await axios.patch(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`, { statusId: newStatusId });
             message.success('Статус заказа успешно обновлен!');
             
             // Обновляем статус локально для мгновенного отклика интерфейса

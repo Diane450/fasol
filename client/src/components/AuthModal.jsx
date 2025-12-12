@@ -20,7 +20,7 @@ const AuthModal = ({ open, onClose }) => {
     const onFinishRegister = async (values) => {
         try {
             const phoneDigits = values.phone.replace(/\D/g, '');
-            const response = await axios.post('http://localhost:5000/api/auth/register', { ...values, phone: phoneDigits });
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/register`, { ...values, phone: phoneDigits });
             message.success('Вы успешно зарегистрировались!');
             login(response.data.user, response.data.token);
             handleCancel();
@@ -31,7 +31,7 @@ const AuthModal = ({ open, onClose }) => {
     
     const onFinishLogin = async (values) => {
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', values);
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, values);
             login(response.data.user, response.data.token);
             message.success(`Добро пожаловать, ${response.data.user.first_name}!`);
             handleCancel();
