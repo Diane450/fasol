@@ -1,17 +1,35 @@
-// src/pages/CartPage.jsx (ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ)
+// src/pages/CartPage.jsx (ПОЛНАЯ ФИНАЛЬНАЯ ВЕРСИЯ)
 import React, { useContext } from 'react';
 import { Typography, List, Button, Avatar, InputNumber, Row, Col, Statistic, Card, Empty, message } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import CartContext from '../context/CartContext';
 import AuthContext from '../context/AuthContext';
 
 const { Title, Text } = Typography;
 
+// Функция-помощник для конвертации BLOB в Base64
+const blobToBase64 = (blobData) => {
+    // ... (код конвертера остается без изменений)
+    if (!blobData || !blobData.data) return null;
+    const CHUNK_SIZE = 0x8000;
+    const bytes = blobData.data;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        binary += String.fromCharCode.apply(null, bytes.slice(i, i + CHUNK_SIZE));
+    }
+    try {
+        return `data:image/jpeg;base64,${btoa(binary)}`;
+    } catch (e) {
+        return null;
+    }
+};
+
 const CartPage = () => {
     const { cartItems, removeFromCart, updateQuantity, clearCart } = useContext(CartContext);
-    const { isAuthenticated, user } = useContext(AuthContext);
+    const { isAuthenticated } = useContext(AuthContext);
+    const { selectedStore } = useOutletContext();
     const navigate = useNavigate();
 
     // Считаем общую стоимость
@@ -20,14 +38,17 @@ const CartPage = () => {
     const handleCheckout = async () => {
         if (!isAuthenticated) {
             message.warning('Пожалуйста, войдите в систему, чтобы оформить заказ.');
-            // В идеале - открыть модалку входа, но для простоты пока так.
+            return;
+        }
+
+        if (!selectedStore) {
+            message.error('Магазин не выбран. Пожалуйста, вернитесь в каталог и выберите магазин.');
             return;
         }
 
         try {
-            // Формируем данные для отправки на сервер
             const orderData = {
-                store_id: 1, // ЗАГЛУШКА: нужно брать выбранный магазин
+                store_id: selectedStore, // Используем реальный ID магазина
                 items: cartItems.map(item => ({
                     product_id: item.id,
                     quantity: item.quantity,
@@ -38,12 +59,13 @@ const CartPage = () => {
 
             await axios.post('http://localhost:5000/api/orders', orderData);
             
-            message.success('Ваш заказ успешно оформлен! Менеджер скоро с вами свяжется.');
-            clearCart(); // Очищаем корзину после успешного заказа
-            navigate('/profile'); // Перенаправляем в личный кабинет на страницу заказов
+            message.success('Ваш заказ успешно оформлен!');
+            clearCart();
+            navigate('/profile');
+
         } catch (error) {
             console.error("Ошибка оформления заказа:", error);
-            message.error('Не удалось оформить заказ. Попробуйте позже.');
+            message.error(error.response?.data?.message || 'Не удалось оформить заказ.');
         }
     };
 
@@ -79,7 +101,7 @@ const CartPage = () => {
                                 ]}
                             >
                                 <List.Item.Meta
-                                    avatar={<Avatar src={item.image_url} />}
+                                    avatar={<Avatar src={blobToBase64(item.image) || '/placeholder.png'} />}
                                     title={<Link to={`/product/${item.id}`}>{item.name}</Link>}
                                     description={`${item.price} ₽ / шт.`}
                                 />
@@ -98,7 +120,7 @@ const CartPage = () => {
 
                 {/* Итоги заказа */}
                 <Col xs={24} lg={8}>
-                    <Card title="Итоги заказа">
+                    <Card title="Итоги заказа" bordered={false} style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)' }}>
                         <Statistic title="Общая стоимость" value={totalPrice} precision={2} suffix="₽" />
                         <Button
                             type="primary"
@@ -106,6 +128,7 @@ const CartPage = () => {
                             block
                             style={{ marginTop: 24 }}
                             onClick={handleCheckout}
+                            disabled={cartItems.length === 0}
                         >
                             Оформить заказ
                         </Button>

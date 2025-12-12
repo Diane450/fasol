@@ -1,3 +1,4 @@
+// src/components/ProductCard.jsx (ФИНАЛЬНАЯ ВЕРСИЯ С ВПИСАННЫМИ КАРТИНКАМИ)
 import React, { useContext } from 'react';
 import { Card, Button, Typography, Tag, Tooltip } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
@@ -7,56 +8,76 @@ const { Meta } = Card;
 const { Text } = Typography;
 
 const blobToBase64 = (blobData) => {
-    if (!blobData || !blobData.data) {
-        return null; // Возвращаем null, чтобы сработала заглушка
+    // ... (код конвертера остается без изменений)
+    if (!blobData || !blobData.data) return null;
+    const CHUNK_SIZE = 0x8000;
+    const bytes = blobData.data;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        binary += String.fromCharCode.apply(null, bytes.slice(i, i + CHUNK_SIZE));
     }
-    const binaryString = String.fromCharCode.apply(null, blobData.data);
-    const base64String = btoa(binaryString);
-    return `data:image/jpeg;base64,${base64String}`;
+    try {
+        return `data:image/jpeg;base64,${btoa(binary)}`;
+    } catch (e) {
+        return null;
+    }
 };
 
 const ProductCard = ({ product, userRole }) => {
     const { addToCart } = useContext(CartContext);
 
-    const actions = [
-        (!userRole || userRole === 'client') && (
-            <Button
-                type="primary"
-                icon={<ShoppingCartOutlined />}
-                onClick={() => addToCart(product)}
-            >
-                В корзину
-            </Button>
-        )
-    ].filter(Boolean);
-
-    // --- ЛОГИКА ОТОБРАЖЕНИЯ КАРТИНКИ С ЗАГЛУШКОЙ ---
-    // Сначала пытаемся получить картинку из BLOB
-    let imageUrl = blobToBase64(product.image);
-    // Если из BLOB ничего не пришло (null), используем нашу заглушку из папки public
-    if (!imageUrl) {
-        imageUrl = '/no-pictures.png'; // Убедись, что файл с таким именем есть в client/public
-    }
+    const imageUrl = blobToBase64(product.image) || '/placeholder.png';
 
     return (
         <Card
             hoverable
-            cover={<img alt={product.name} src={imageUrl} style={{ height: 200, objectFit: 'cover' }} />}
-            actions={actions}
+            style={{ borderRadius: '12px', overflow: 'hidden' }}
+            bodyStyle={{ padding: '16px' }}
+            // Мы передаем стили прямо в обертку `cover`
+            cover={
+                <div style={{ 
+                    height: 180, 
+                    backgroundColor: '#f5f5f5', // Нейтральный фон для пустых областей
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <img 
+                        alt={product.name} 
+                        src={imageUrl} 
+                        style={{ 
+                            maxHeight: '100%', // Картинка не будет выше контейнера
+                            maxWidth: '100%',  // И не будет шире
+                            objectFit: 'contain' // <-- ГЛАВНОЕ ИЗМЕНЕНИЕ
+                        }} 
+                    />
+                </div>
+            }
         >
-            <Meta
-                title={
+            <div style={{ minHeight: '130px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flexGrow: 1 }}>
+                    <Tag color="geekblue" style={{ marginBottom: '8px' }}>{product.category_name || 'Без категории'}</Tag>
                     <Tooltip title={product.name}>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography.Title level={5} style={{ margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {product.name}
-                        </div>
+                        </Typography.Title>
                     </Tooltip>
-                }
-                description={<Tag color="blue">{product.category_name || 'Без категории'}</Tag>}
-            />
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong style={{ fontSize: '1.2em' }}>{product.price} ₽</Text>
-                <Text type="secondary">В наличии: {product.quantity} шт.</Text>
+                    <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                        В наличии: {product.quantity} шт.
+                    </Text>
+                </div>
+                
+                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ fontSize: '1.4em' }}>{product.price} ₽</Text>
+                    {(!userRole || userRole === 'client') && (
+                         <Button
+                            type="primary"
+                            shape="circle"
+                            icon={<ShoppingCartOutlined />}
+                            onClick={() => addToCart(product)}
+                        />
+                    )}
+                </div>
             </div>
         </Card>
     );

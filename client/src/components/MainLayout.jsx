@@ -96,8 +96,15 @@ const MainLayout = () => {
                 </Space>
             </Header>
             
-            <Content style={{ padding: '0 50px', marginTop: 84 }}>
-                <div style={{ background: '#fff', padding: 24, minHeight: 380, marginTop: 20, borderRadius: '8px' }}>
+            <Content style={{ padding: '0 24px', marginTop: 84 }}> {/* Уменьшим боковые отступы */}
+                <div style={{ 
+                    maxWidth: '1400px', // Ограничим максимальную ширину для больших экранов
+                    margin: '24px auto', // Отступы сверху/снизу и центрирование
+                    background: '#fff', 
+                    padding: 24, 
+                    borderRadius: '16px', // Более заметные скругления
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.05)' // Мягкая тень
+                }}>
                     <Outlet context={{ selectedStore }} /> 
                 </div>
             </Content>
