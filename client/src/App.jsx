@@ -1,17 +1,22 @@
-// src/App.jsx (ФИНАЛЬНАЯ ПРАВИЛЬНАЯ ВЕРСИЯ РОУТИНГА)
+// src/App.jsx (ФИНАЛЬНАЯ ВЕРСИЯ С РУСИФИКАЦИЕЙ)
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
+import ruRU from 'antd/locale/ru_RU'; // <-- 1. ИМПОРТИРУЕМ РУССКИЙ ЯЗЫКОВОЙ ПАКЕТ
+
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import ProfilePage from './pages/ProfilePage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
+import AdminProductsPage from './pages/AdminProductsPage';
 import CartPage from './pages/CartPage';
+import AdminStockPage from './pages/AdminStockPage';
 
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 
+// Твоя тема
 const myTheme = {
   token: {
     colorPrimary: '#00b96b',
@@ -24,23 +29,23 @@ function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        <ConfigProvider theme={myTheme}>
+        {/* 2. ПЕРЕДАЕМ ЯЗЫКОВОЙ ПАКЕТ В CONFIGPROVIDER */}
+        <ConfigProvider theme={myTheme} locale={ruRU}>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<MainLayout />}>
                 
-                {/* --- ПУБЛИЧНЫЕ СТРАНИЦЫ (доступны всем) --- */}
                 <Route index element={<HomePage />} />
-                <Route path="cart" element={<CartPage />} /> {/* <-- ПЕРЕНЕСЛИ КОРЗИНУ СЮДА */}
+                <Route path="cart" element={<CartPage />} />
                 
-                {/* --- СТРАНИЦЫ ТОЛЬКО ДЛЯ КЛИЕНТА --- */}
                 <Route element={<ProtectedRoute allowedRoles={['client']} />}>
                   <Route path="profile" element={<ProfilePage />} />
                 </Route>
                 
-                {/* --- СТРАНИЦЫ ТОЛЬКО ДЛЯ АДМИНА/МЕНЕДЖЕРА --- */}
                 <Route element={<ProtectedRoute allowedRoles={['admin', 'manager']} />}>
                   <Route path="admin/orders" element={<AdminOrdersPage />} />
+                  <Route path="admin/products" element={<AdminProductsPage />} />
+                  <Route path="admin/stock" element={<AdminStockPage />} />
                 </Route>
 
               </Route>

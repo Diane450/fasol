@@ -1,8 +1,12 @@
-// server/index.js (ПОЛНАЯ ПРАВИЛЬНАЯ ВЕРСИЯ)
 const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Импортируем наше подключение
 const authMiddleware = require('./auth.middleware');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'your-super-secret-key-that-should-be-in-env-file'; // В реальном проекте это должно быть в .env!
+const multer = require('multer'); // Библиотека для загрузки файлов
+const upload = multer({ storage: multer.memoryStorage() }); // Храним файл в памяти перед записью в BLOB
 const app = express();
 const PORT = 5000;
 
@@ -89,9 +93,6 @@ app.get('/api/categories', async (req, res) => {
 
 // server/index.js -> добавляем этот код
 
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'your-super-secret-key-that-should-be-in-env-file'; // В реальном проекте это должно быть в .env!
 
 // server/index.js (обновленный роут регистрации)
 
@@ -148,41 +149,56 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// POST /api/auth/login - Вход пользователя
+// server/index.js (обновленный роут входа)
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // 1. Ищем пользователя и его роль
         const [users] = await db.query('SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.email = ?', [email]);
         if (users.length === 0) {
             return res.status(401).json({ message: 'Неверный email или пароль' });
         }
         const user = users[0];
 
+        // 2. Сравниваем пароль
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             return res.status(401).json({ message: 'Неверный email или пароль' });
         }
 
+        // --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
+        let storeId = null;
+        // 3. Если это менеджер, находим его магазин
+        if (user.role_name === 'manager') {
+            const [employeeData] = await db.query('SELECT store_id FROM employees WHERE user_id = ?', [user.id]);
+            if (employeeData.length > 0) {
+                storeId = employeeData[0].store_id;
+            }
+        }
+
+        // 4. Создаем JWT токен с дополнительной информацией
         const payload = {
             user: {
                 id: user.id,
-                role: user.role_name
+                role: user.role_name,
+                store_id: storeId // Добавляем ID магазина в токен!
             }
         };
 
-        jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
-            if (err) throw err;
-            res.json({ 
-                token,
-                user: {
-                    id: user.id,
-                    first_name: user.first_name,
-                    last_name: user.last_name,
-                    email: user.email,
-                    role: user.role_name
-                }
-            });
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+        
+        // 5. Отправляем все данные на фронтенд
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                email: user.email,
+                role: user.role_name,
+                store_id: storeId // И в информацию о пользователе тоже
+            }
         });
 
     } catch (err) {
@@ -343,6 +359,166 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
     } finally {
         // Всегда освобождаем соединение
         connection.release();
+    }
+});
+
+// Middleware для проверки ролей
+const checkAdminRole = (req, res, next) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Доступ запрещен. Требуются права администратора.' });
+    }
+    next();
+};
+
+// 1. READ: Получить ВСЕ товары для админки (с поиском и фильтрами)
+app.get('/api/admin/products', authMiddleware, checkAdminRole, async (req, res) => {
+    try {
+        const { search = '', category_id } = req.query;
+        let queryParams = [];
+        let sql = `
+            SELECT p.id, p.name, p.price, p.description, c.name as category_name, p.category_id
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE 1=1
+        `;
+
+        if (search) {
+            sql += ' AND p.name LIKE ?';
+            queryParams.push(`%${search}%`);
+        }
+        if (category_id) {
+            sql += ' AND p.category_id = ?';
+            queryParams.push(category_id);
+        }
+        sql += ' ORDER BY p.id DESC';
+        const [products] = await db.query(sql, queryParams);
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// 2. CREATE: Добавить новый товар (с загрузкой картинки в BLOB)
+app.post('/api/admin/products', authMiddleware, checkAdminRole, upload.single('image'), async (req, res) => {
+    try {
+        const { name, description, price, category_id, store_id, quantity } = req.body;
+        const image = req.file ? req.file.buffer : null; // Картинка приходит как бинарный буфер
+
+        const [result] = await db.query(
+            'INSERT INTO products (name, description, price, category_id, image) VALUES (?, ?, ?, ?, ?)',
+            [name, description, price, category_id, image]
+        );
+        const newProductId = result.insertId;
+
+        // Добавляем информацию о наличии на склад
+        await db.query(
+            'INSERT INTO store_products (store_id, product_id, quantity) VALUES (?, ?, ?)',
+            [store_id, newProductId, quantity]
+        );
+
+        res.status(201).json({ message: 'Товар успешно создан', productId: newProductId });
+    } catch (err) {
+        console.error("Ошибка при создании товара:", err);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// 3. UPDATE: Обновить товар
+app.put('/api/admin/products/:id', authMiddleware, checkAdminRole, upload.single('image'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, price, category_id } = req.body;
+        const image = req.file ? req.file.buffer : null;
+
+        let sql = 'UPDATE products SET name = ?, description = ?, price = ?, category_id = ?';
+        let queryParams = [name, description, price, category_id];
+
+        // Обновляем картинку, только если она была загружена
+        if (image) {
+            sql += ', image = ?';
+            queryParams.push(image);
+        }
+
+        sql += ' WHERE id = ?';
+        queryParams.push(id);
+
+        await db.query(sql, queryParams);
+        res.json({ message: 'Товар успешно обновлен' });
+    } catch (err) {
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// 4. DELETE: Удалить товар
+app.delete('/api/admin/products/:id', authMiddleware, checkAdminRole, async (req, res) => {
+    try {
+        const { id } = req.params;
+        // ON DELETE CASCADE в базе данных автоматически удалит записи из store_products и order_items
+        await db.query('DELETE FROM products WHERE id = ?', [id]);
+        res.json({ message: 'Товар успешно удален' });
+    } catch (err) {
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// GET /api/admin/stock - Получить все остатки на складах
+app.get('/api/admin/stock', authMiddleware, checkAdminRole, async (req, res) => {
+    try {
+        const { search = '' } = req.query;
+        const { role, store_id } = req.user; // Получаем данные пользователя из токена
+
+        let queryParams = [];
+        let sql = `
+            SELECT 
+                sp.id, 
+                p.name as product_name, 
+                s.address as store_name, 
+                sp.quantity
+            FROM store_products sp
+            JOIN products p ON sp.product_id = p.id
+            JOIN stores s ON sp.store_id = s.id
+            WHERE 1=1
+        `;
+        
+        // --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
+        // Если это менеджер, жестко фильтруем по его магазину
+        if (role === 'manager') {
+            sql += ' AND sp.store_id = ?';
+            queryParams.push(store_id);
+        }
+
+        if (search) {
+            sql += ' AND (p.name LIKE ?' + (role === 'admin' ? ' OR s.address LIKE ?' : '') + ')';
+            queryParams.push(`%${search}%`);
+            if (role === 'admin') {
+                queryParams.push(`%${search}%`); // Админ может искать и по магазину
+            }
+        }
+        
+        sql += ' ORDER BY s.address, p.name';
+        const [stockItems] = await db.query(sql, queryParams);
+        res.json(stockItems);
+    } catch (err) {
+        console.error("Ошибка при получении остатков:", err);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// PUT /api/admin/stock/:id - Обновить количество товара на складе
+app.put('/api/admin/stock/:id', authMiddleware, checkAdminRole, async (req, res) => {
+    try {
+        const { id } = req.params; // ID из таблицы store_products
+        const { quantity } = req.body;
+
+        if (quantity === undefined || quantity < 0) {
+            return res.status(400).json({ message: 'Некорректное количество' });
+        }
+
+        await db.query('UPDATE store_products SET quantity = ? WHERE id = ?', [quantity, id]);
+        res.json({ message: 'Количество товара обновлено' });
+    } catch (err) {
+        console.error("Ошибка при обновлении остатков:", err);
+        res.status(500).json({ message: "Ошибка сервера" });
     }
 });
 

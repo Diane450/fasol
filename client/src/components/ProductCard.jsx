@@ -1,25 +1,19 @@
-// src/components/ProductCard.jsx (ВЕРСИЯ С ПОДДЕРЖКОЙ BLOB И ПОДСКАЗКОЙ)
 import React, { useContext } from 'react';
-import { Card, Button, Typography, Tag, Tooltip } from 'antd'; // <-- Добавили Tooltip
+import { Card, Button, Typography, Tag, Tooltip } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import CartContext from '../context/CartContext';
 
 const { Meta } = Card;
 const { Text } = Typography;
 
-// Функция-помощник для конвертации BLOB в Base64
 const blobToBase64 = (blobData) => {
     if (!blobData || !blobData.data) {
-        return 'https://via.placeholder.com/300'; // Заглушка, если данных нет
+        return null; // Возвращаем null, чтобы сработала заглушка
     }
-    // `blobData.data` - это массив байтов. Превращаем его в строку.
     const binaryString = String.fromCharCode.apply(null, blobData.data);
-    // Кодируем строку в base64
     const base64String = btoa(binaryString);
-    // Возвращаем готовый URL для тега <img>
     return `data:image/jpeg;base64,${base64String}`;
 };
-
 
 const ProductCard = ({ product, userRole }) => {
     const { addToCart } = useContext(CartContext);
@@ -36,8 +30,13 @@ const ProductCard = ({ product, userRole }) => {
         )
     ].filter(Boolean);
 
-    // Конвертируем картинку для отображения
-    const imageUrl = blobToBase64(product.image);
+    // --- ЛОГИКА ОТОБРАЖЕНИЯ КАРТИНКИ С ЗАГЛУШКОЙ ---
+    // Сначала пытаемся получить картинку из BLOB
+    let imageUrl = blobToBase64(product.image);
+    // Если из BLOB ничего не пришло (null), используем нашу заглушку из папки public
+    if (!imageUrl) {
+        imageUrl = '/no-pictures.png'; // Убедись, что файл с таким именем есть в client/public
+    }
 
     return (
         <Card
@@ -46,7 +45,6 @@ const ProductCard = ({ product, userRole }) => {
             actions={actions}
         >
             <Meta
-                // Оборачиваем заголовок в Tooltip для подсказки
                 title={
                     <Tooltip title={product.name}>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
