@@ -1,16 +1,20 @@
-// src/components/MainLayout.jsx (Обновленная версия)
-import React, { useState, useEffect } from 'react';
+// src/components/MainLayout.jsx (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+import React, { useState, useEffect, useContext } from 'react'; // <--- ВОТ ИСПРАВЛЕНИЕ
 import axios from 'axios';
-import { Layout, Menu, Select, Button, Space } from 'antd';
+import { Layout, Menu, Select, Button, Space, Avatar } from 'antd';
 import { AppstoreOutlined, ShoppingCartOutlined, UserOutlined } from '@ant-design/icons';
 import { Outlet, Link } from 'react-router-dom';
+import AuthContext from '../context/AuthContext';
+import AuthModal from './AuthModal';
 
 const { Header, Content, Footer } = Layout;
 const { Option } = Select;
 
 const MainLayout = () => {
+    const { isAuthenticated, user, logout } = useContext(AuthContext);
     const [stores, setStores] = useState([]);
     const [selectedStore, setSelectedStore] = useState(null);
+    const [isModalVisible, setIsModalVisible] = useState(false);
 
     useEffect(() => {
         axios.get('http://localhost:5000/api/stores')
@@ -28,8 +32,7 @@ const MainLayout = () => {
     };
 
     return (
-        <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}> {/* Сделаем фон сайта чуть-чуть серым для контраста */}
-            {/* 1. СОВРЕМЕННЫЙ ХЕДЕР */}
+        <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}>
             <Header style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -37,16 +40,16 @@ const MainLayout = () => {
                 position: 'fixed', 
                 zIndex: 1, 
                 width: '100%',
-                background: '#fff', // Белый фон
-                borderBottom: '1px solid #f0f0f0' // Тонкая линия внизу
+                background: '#fff',
+                borderBottom: '1px solid #f0f0f0'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <img src="/logo.png" alt="Логотип" style={{ height: '40px', margin: '0 20px 0 0' }} />
                     <Menu 
-                        theme="light" // Светлая тема для меню!
+                        theme="light"
                         mode="horizontal" 
                         defaultSelectedKeys={['1']}
-                        style={{ borderBottom: 'none' }} // Убираем свою линию у меню
+                        style={{ borderBottom: 'none' }}
                     >
                         <Menu.Item key="1" icon={<AppstoreOutlined />}><Link to="/">Каталог</Link></Menu.Item>
                         <Menu.Item key="2" icon={<ShoppingCartOutlined />}><Link to="/cart">Корзина</Link></Menu.Item>
@@ -64,12 +67,22 @@ const MainLayout = () => {
                             <Option key={store.id} value={store.id}>{store.address}</Option>
                         ))}
                     </Select>
-                    <Button icon={<UserOutlined />}>Войти</Button>
+                    {isAuthenticated ? (
+                        <>
+                            <Avatar icon={<UserOutlined />} />
+                            <span style={{ color: '#000' }}>{user.first_name}</span>
+                            <Button onClick={logout}>Выйти</Button>
+                        </>
+                    ) : (
+                        <Button icon={<UserOutlined />} onClick={() => setIsModalVisible(true)}>
+                            Войти
+                        </Button>
+                    )}
                 </Space>
             </Header>
             
             <Content style={{ padding: '0 50px', marginTop: 84 }}>
-                <div style={{ background: '#fff', padding: 24, minHeight: 380, marginTop: 20, borderRadius: '8px' }}> {/* Скруглим углы у контента */}
+                <div style={{ background: '#fff', padding: 24, minHeight: 380, marginTop: 20, borderRadius: '8px' }}>
                     <Outlet context={{ selectedStore }} /> 
                 </div>
             </Content>
@@ -77,6 +90,11 @@ const MainLayout = () => {
             <Footer style={{ textAlign: 'center', background: '#f5f5f5' }}>
                 Курсовой проект ©2025 Created with Ant Design
             </Footer>
+
+            <AuthModal
+                open={isModalVisible} // <-- меняем visible на open
+                onClose={() => setIsModalVisible(false)}
+            />
         </Layout>
     );
 };
