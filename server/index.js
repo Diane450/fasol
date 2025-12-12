@@ -2,7 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Импортируем наше подключение
-
+const authMiddleware = require('./auth.middleware');
 const app = express();
 const PORT = 5000;
 
@@ -188,6 +188,161 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) {
         console.error("Ошибка входа:", err);
         res.status(500).json({ message: "Внутренняя ошибка сервера" });
+    }
+});
+
+// GET /api/profile - Получить данные своего профиля
+app.get('/api/profile', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [userData] = await db.query(`
+            SELECT u.id, u.first_name, u.last_name, u.email, u.phone, cd.delivery_address
+            FROM users u
+            LEFT JOIN client_details cd ON u.id = cd.user_id
+            WHERE u.id = ?
+        `, [userId]);
+        res.json(userData[0]);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// PUT /api/profile - Обновить данные своего профиля
+app.put('/api/profile', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { first_name, last_name, phone, delivery_address } = req.body;
+
+        await db.query('UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE id = ?', [first_name, last_name, phone, userId]);
+        await db.query('UPDATE client_details SET delivery_address = ? WHERE user_id = ?', [delivery_address, userId]);
+        
+        res.json({ message: 'Профиль успешно обновлен' });
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// GET /api/orders/my - Получить историю своих заказов
+app.get('/api/orders/my', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [orders] = await db.query(`
+            SELECT o.id, o.total_price, o.created_at, os.label as status
+            FROM orders o
+            JOIN order_statuses os ON o.status_id = os.id
+            WHERE o.user_id = ?
+            ORDER BY o.created_at DESC
+        `, [userId]);
+        res.json(orders);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+
+// --- РОУТЫ ДЛЯ АДМИНКИ ---
+
+// GET /api/orders - Получить ВСЕ заказы (только для админа/менеджера)
+app.get('/api/orders', authMiddleware, async (req, res) => {
+    // Здесь можно добавить проверку роли: if (req.user.role !== 'admin' && req.user.role !== 'manager') ...
+    try {
+        const [orders] = await db.query(`
+            SELECT o.id, o.total_price, o.created_at, os.label as status, os.id as status_id, u.first_name, u.last_name
+            FROM orders o
+            JOIN order_statuses os ON o.status_id = os.id
+            JOIN users u ON o.user_id = u.id
+            ORDER BY o.created_at DESC
+        `);
+        res.json(orders);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// PATCH /api/orders/:id/status - Изменить статус заказа
+app.patch('/api/orders/:id/status', authMiddleware, async (req, res) => {
+    // Здесь можно добавить проверку роли, если нужно
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+        return res.status(403).json({ message: 'Доступ запрещен' });
+    }
+
+    try {
+        const { id } = req.params; // <-- ИСПРАВЛЕНО
+        const { statusId } = req.body;
+        
+        if (!id || !statusId) {
+            return res.status(400).json({ message: 'Не предоставлен ID заказа или статус' });
+        }
+
+        const [result] = await db.query('UPDATE orders SET status_id = ? WHERE id = ?', [statusId, id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Заказ с таким ID не найден' });
+        }
+        
+        res.json({ message: 'Статус заказа обновлен' });
+
+    } catch (err) {
+        console.error("Ошибка при смене статуса:", err);
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// GET /api/order-statuses - Получить все возможные статусы (для выпадающего списка)
+app.get('/api/order-statuses', authMiddleware, async (req, res) => {
+    try {
+        const [statuses] = await db.query('SELECT * FROM order_statuses');
+        res.json(statuses);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// server/index.js -> добавляем этот код
+
+// POST /api/orders - Создание нового заказа
+app.post('/api/orders', authMiddleware, async (req, res) => {
+    // Начинаем транзакцию, чтобы все запросы выполнились успешно, либо ни один
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        const { store_id, items, total_price } = req.body;
+        const user_id = req.user.id; // Берем ID пользователя из токена
+
+        // 1. Создаем "шапку" заказа в таблице `orders`
+        const [orderResult] = await connection.query(
+            'INSERT INTO orders (user_id, store_id, total_price, status_id) VALUES (?, ?, ?, ?)',
+            [user_id, store_id, total_price, 1] // status_id = 1 (Новый)
+        );
+        const orderId = orderResult.insertId;
+
+        // 2. Добавляем товары из заказа в таблицу `order_items`
+        for (const item of items) {
+            await connection.query(
+                'INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase) VALUES (?, ?, ?, ?)',
+                [orderId, item.product_id, item.quantity, item.price_at_purchase]
+            );
+
+            // 3. УМЕНЬШАЕМ КОЛИЧЕСТВО ТОВАРА НА СКЛАДЕ (очень важный шаг для диплома!)
+            await connection.query(
+                'UPDATE store_products SET quantity = quantity - ? WHERE product_id = ? AND store_id = ?',
+                [item.quantity, item.product_id, store_id]
+            );
+        }
+
+        // Если все запросы выше прошли без ошибок, подтверждаем транзакцию
+        await connection.commit();
+        res.status(201).json({ message: 'Заказ успешно создан', orderId });
+
+    } catch (error) {
+        // Если хоть один запрос упал, откатываем все изменения
+        await connection.rollback();
+        console.error("Ошибка при создании заказа:", error);
+        res.status(500).json({ message: 'Ошибка сервера при создании заказа' });
+    } finally {
+        // Всегда освобождаем соединение
+        connection.release();
     }
 });
 

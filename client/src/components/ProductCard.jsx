@@ -1,21 +1,33 @@
-// src/components/ProductCard.jsx
-import React from 'react';
+// src/components/ProductCard.jsx (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
+import React, { useContext } from 'react'; // <-- ВОТ ИСПРАВЛЕНИЕ
 import { Card, Button, Typography, Tag } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
+import CartContext from '../context/CartContext';
 
 const { Meta } = Card;
 const { Text } = Typography;
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, userRole }) => {
+    // Теперь эта строка будет работать
+    const { addToCart } = useContext(CartContext); 
+
+    const actions = [
+        (!userRole || userRole === 'client') && (
+            <Button
+                type="primary"
+                icon={<ShoppingCartOutlined />}
+                onClick={() => addToCart(product)}
+            >
+                В корзину
+            </Button>
+        )
+    ].filter(Boolean);
+
     return (
         <Card
             hoverable
             cover={<img alt={product.name} src={product.image_url || 'https://via.placeholder.com/300'} style={{ height: 200, objectFit: 'cover' }} />}
-            actions={[
-                <Button type="primary" icon={<ShoppingCartOutlined />}>
-                    В корзину
-                </Button>
-            ]}
+            actions={actions}
         >
             <Meta
                 title={product.name}

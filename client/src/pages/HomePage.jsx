@@ -1,15 +1,16 @@
-// src/pages/HomePage.jsx (Обновленная версия с фильтрами)
-import React, { useState, useEffect } from 'react';
+// src/pages/HomePage.jsx (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
+import React, { useState, useEffect, useContext } from 'react'; // <-- ДОБАВИЛИ useContext
 import axios from 'axios';
 import { useOutletContext } from 'react-router-dom';
-import { List, Spin, Typography, Empty, Row, Col, Select, Radio, Divider } from 'antd';
+import { Spin, Typography, Empty, Row, Col, Select, Radio, Divider } from 'antd';
 import ProductCard from '../components/ProductCard';
+import AuthContext from '../context/AuthContext'; // <-- ДОБАВИЛИ ИМПОРТ КОНТЕКСТА
 
 const { Option } = Select;
 
 const HomePage = () => {
     const { selectedStore } = useOutletContext();
-    
+    const { user } = useContext(AuthContext);
     // Состояния для данных
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -94,17 +95,18 @@ const HomePage = () => {
 
             <Divider />
 
-            {/* Сетка товаров */}
-            <List
-                grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
-                dataSource={products}
-                renderItem={(product) => (
-                    <List.Item>
-                        <ProductCard product={product} />
-                    </List.Item>
-                )}
-                locale={{ emptyText: <Empty description="Товары не найдены. Попробуйте изменить фильтры." /> }}
-            />
+            {products.length > 0 ? (
+                <Row gutter={[16, 16]}>
+                    {products.map(product => (
+                        <Col key={product.id} xs={24} sm={12} md={8} lg={6} xl={4}>
+                            {/* Передаем роль в карточку */}
+                            <ProductCard product={product} userRole={user?.role} />
+                        </Col>
+                    ))}
+                </Row>
+            ) : (
+                <Empty description="Товары не найдены. Попробуйте изменить фильтры." />
+            )}
         </div>
     );
 };
