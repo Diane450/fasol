@@ -1,4 +1,3 @@
-// src/components/AuthModal.jsx (ФИНАЛЬНАЯ ВЕРСИЯ БЕЗ ЛИШНИХ БИБЛИОТЕК)
 import React, { useContext } from 'react';
 import { Modal, Form, Input, Button, Tabs, message } from 'antd';
 import axios from 'axios';
@@ -40,7 +39,6 @@ const AuthModal = ({ open, onClose }) => {
         }
     };
 
-    // --- НАША ФУНКЦИЯ ДЛЯ ФОРМАТИРОВАНИЯ ТЕЛЕФОНА ---
     const handlePhoneChange = (e) => {
         const input = e.target.value;
         const digits = input.replace(/\D/g, '').substring(0, 11);
@@ -64,7 +62,6 @@ const AuthModal = ({ open, onClose }) => {
             }
         }
         
-        // Обновляем значение в поле формы вручную
         registerForm.setFieldsValue({ phone: formatted });
     };
 
@@ -90,11 +87,10 @@ const AuthModal = ({ open, onClose }) => {
                         <Form.Item name="last_name" label="Фамилия" rules={[{ required: true }]}><Input /></Form.Item>
                         <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}><Input /></Form.Item>
                         
-                        {/* --- ИСПОЛЬЗУЕМ ОБЫЧНЫЙ INPUT С НАШЕЙ ЛОГИКОЙ --- */}
                         <Form.Item name="phone" label="Телефон" rules={[{ required: true, message: 'Введите номер телефона' }]}>
                             <Input 
                                 placeholder="+7 (999) 123-45-67"
-                                onChange={handlePhoneChange} // <-- Применяем нашу магию
+                                onChange={handlePhoneChange}
                                 maxLength={18}
                             />
                         </Form.Item>

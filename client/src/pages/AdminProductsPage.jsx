@@ -150,7 +150,7 @@ const AdminProductsPage = () => {
                     {!editingProduct && (
                         <>
                             <Form.Item name="store_id" label="Магазин" rules={[{ required: true }]}>
-                                <Select placeholder="Выберите магазин">{stores.map(store => <Option key={store.id} value={store.id}>{store.name}</Option>)}</Select>
+                                <Select placeholder="Выберите магазин">{stores.map(store => <Option key={store.id} value={store.id}>{store.address}</Option>)}</Select>
                             </Form.Item>
                              <Form.Item name="quantity" label="Количество на складе" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
                         </>

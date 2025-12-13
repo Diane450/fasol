@@ -16,7 +16,6 @@ app.use(cors());
 
 // --- НАШИ API РОУТЫ ---
 
-// Роут для проверки базы данных - Получить все роли
 app.get('/api/roles', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM roles');
@@ -102,37 +101,29 @@ app.post('/api/auth/register', async (req, res) => {
     try {
         const { first_name, last_name, email, password, phone } = req.body;
 
-        // 1. Проверка на существующего пользователя
         const [existingUsers] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
         if (existingUsers.length > 0) {
             return res.status(409).json({ message: 'Пользователь с таким email уже существует' });
         }
 
-        // 2. Хеширование пароля
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
         
-        // 3. Получение ID роли 'client'
         const [clientRole] = await db.query("SELECT id FROM roles WHERE name = 'client'");
         if (!clientRole.length) throw new Error("Role 'client' not found");
         const role_id = clientRole[0].id;
 
-        // 4. Сохранение пользователя в БД
         const [result] = await db.query(
             'INSERT INTO users (first_name, last_name, email, password_hash, phone, role_id) VALUES (?, ?, ?, ?, ?, ?)',
             [first_name, last_name, email, password_hash, phone, role_id]
         );
         const newUserId = result.insertId;
 
-        // 5. Создание записи в client_details
         await db.query('INSERT INTO client_details (user_id) VALUES (?)', [newUserId]);
 
-        // --- ЛОГИКА АВТО-ЛОГИНА ---
-        // 6. Создаем JWT токен, как при логине
         const payload = { user: { id: newUserId, role: 'client' } };
         const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-        // 7. Отправляем токен и данные нового пользователя на фронтенд
         res.status(201).json({
             token,
             user: {
@@ -259,9 +250,8 @@ app.get('/api/orders/my', authMiddleware, async (req, res) => {
 
 // --- РОУТЫ ДЛЯ АДМИНКИ ---
 
-// GET /api/orders - Получить ВСЕ заказы (только для админа/менеджера)
+// GET /api/orders
 app.get('/api/orders', authMiddleware, async (req, res) => {
-    // Здесь можно добавить проверку роли: if (req.user.role !== 'admin' && req.user.role !== 'manager') ...
     try {
         const [orders] = await db.query(`
             SELECT o.id, o.total_price, o.created_at, os.label as status, os.id as status_id, u.first_name, u.last_name
@@ -278,7 +268,6 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
 
 // PATCH /api/orders/:id/status - Изменить статус заказа
 app.patch('/api/orders/:id/status', authMiddleware, async (req, res) => {
-    // Здесь можно добавить проверку роли, если нужно
     if (req.user.role !== 'admin' && req.user.role !== 'manager') {
         return res.status(403).json({ message: 'Доступ запрещен' });
     }
@@ -547,29 +536,32 @@ app.put('/api/admin/stock/:id', authMiddleware, checkAdminRole, async (req, res)
 app.get('/api/orders/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { role, id: userId } = req.user; // Получаем роль и ID пользователя из токена
+        const { role, id: userId } = req.user;
 
-        // 1. Получаем "шапку" заказа
+        // --- ГЛАВНОЕ ИЗМЕНЕНИЕ: ДОБАВЛЯЕМ JOIN С ТАБЛИЦЕЙ СТАТУСОВ ---
         const [orderRows] = await db.query(
-            `SELECT o.*, s.address as store_name, u.first_name, u.last_name 
+            `SELECT 
+                o.*, 
+                s.address as store_name, 
+                u.first_name, 
+                u.last_name,
+                os.label as status       -- <--- Добавили текстовый статус
              FROM orders o 
              JOIN stores s ON o.store_id = s.id
              JOIN users u ON o.user_id = u.id
+             JOIN order_statuses os ON o.status_id = os.id -- <--- Добавили JOIN
              WHERE o.id = ?`, [id]
         );
         
         if (orderRows.length === 0) {
             return res.status(404).json({ message: 'Заказ не найден' });
         }
-
         const order = orderRows[0];
         
-        // 2. Проверка прав: Админ/менеджер может видеть любой заказ. Клиент - только свой.
         if (role === 'client' && order.user_id !== userId) {
             return res.status(403).json({ message: 'Доступ запрещен' });
         }
 
-        // 3. Получаем список товаров в этом заказе
         const [orderItems] = await db.query(
             `SELECT oi.quantity, oi.price_at_purchase, p.name as product_name 
              FROM order_items oi
@@ -577,7 +569,6 @@ app.get('/api/orders/:id', authMiddleware, async (req, res) => {
              WHERE oi.order_id = ?`, [id]
         );
 
-        // 4. Собираем и отправляем полный ответ
         res.json({ ...order, items: orderItems });
 
     } catch (err) {

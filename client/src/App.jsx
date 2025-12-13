@@ -21,19 +21,15 @@ const myTheme = {
   token: {
     colorPrimary: '#00b96b',
     colorWarning: '#f7931e',
-    borderRadius: 8, // Сделаем скругления чуть больше
+    borderRadius: 8,
     
-    // --- ДОБАВЛЯЕМ ШРИФТ ---
     fontFamily: "'Nunito', sans-serif",
   },
-  // Добавим стили для некоторых компонентов
   components: {
     Button: {
-        // Сделаем кнопки чуть менее "квадратными"
         fontWeight: 600,
     },
     Card: {
-        // Уберем рамку у карточек, будем использовать тень
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
         border: 'none',
     }

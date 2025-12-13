@@ -18,15 +18,12 @@ const AdminOrdersPage = () => {
                 axios.get(`${import.meta.env.VITE_API_URL}/api/order-statuses`)
             ]);
             
-            // Для каждого заказа из списка запрашиваем его детали
             const ordersWithDetails = await Promise.all(
                 ordersRes.data.map(order => 
                     axios.get(`${import.meta.env.VITE_API_URL}/api/orders/${order.id}`).then(res => res.data)
                 )
             );
             
-            // --- ИСПРАВЛЕНИЕ ---
-            // Сохраняем в состояние именно массив с деталями
             setOrders(ordersWithDetails || []); 
             setStatuses(statusesRes.data || []);
 
@@ -47,7 +44,6 @@ const AdminOrdersPage = () => {
             await axios.patch(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`, { statusId: newStatusId });
             message.success('Статус заказа успешно обновлен!');
             
-            // Обновляем статус локально для мгновенного отклика интерфейса
             setOrders(prevOrders => prevOrders.map(order => 
                 order.id === orderId 
                 ? { ...order, status_id: newStatusId, status: statuses.find(s => s.id === newStatusId)?.label } 
@@ -66,7 +62,6 @@ const AdminOrdersPage = () => {
             { title: 'Цена за шт.', dataIndex: 'price_at_purchase', key: 'price', render: text => `${text} ₽` },
             { title: 'Сумма', key: 'total', render: (_, item) => `${(item.quantity * item.price_at_purchase).toFixed(2)} ₽`},
         ];
-        // Проверяем, есть ли вообще items, на всякий случай
         return <Table columns={columns} dataSource={record.items || []} pagination={false} rowKey="product_name" />;
     };
 

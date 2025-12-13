@@ -1,4 +1,3 @@
-// src/components/ProductCard.jsx (ФИНАЛЬНАЯ ВЕРСИЯ С ВПИСАННЫМИ КАРТИНКАМИ)
 import React, { useContext } from 'react';
 import { Card, Button, Typography, Tag, Tooltip } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
@@ -8,7 +7,6 @@ const { Meta } = Card;
 const { Text } = Typography;
 
 const blobToBase64 = (blobData) => {
-    // ... (код конвертера остается без изменений)
     if (!blobData || !blobData.data) return null;
     const CHUNK_SIZE = 0x8000;
     const bytes = blobData.data;
@@ -33,11 +31,10 @@ const ProductCard = ({ product, userRole }) => {
             hoverable
             style={{ borderRadius: '12px', overflow: 'hidden' }}
             bodyStyle={{ padding: '16px' }}
-            // Мы передаем стили прямо в обертку `cover`
             cover={
                 <div style={{ 
                     height: 180, 
-                    backgroundColor: '#f5f5f5', // Нейтральный фон для пустых областей
+                    backgroundColor: '#f5f5f5', 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -46,9 +43,9 @@ const ProductCard = ({ product, userRole }) => {
                         alt={product.name} 
                         src={imageUrl} 
                         style={{ 
-                            maxHeight: '100%', // Картинка не будет выше контейнера
-                            maxWidth: '100%',  // И не будет шире
-                            objectFit: 'contain' // <-- ГЛАВНОЕ ИЗМЕНЕНИЕ
+                            maxHeight: '100%',
+                            maxWidth: '100%', 
+                            objectFit: 'contain' 
                         }} 
                     />
                 </div>

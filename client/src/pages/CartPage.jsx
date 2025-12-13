@@ -30,7 +30,6 @@ const CartPage = () => {
 
     const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    // Функция handleCheckout находится прямо внутри компонента, где и должна быть
     const handleCheckout = async () => {
         if (!isAuthenticated) {
             message.warning('Пожалуйста, войдите в систему, чтобы оформить заказ.');
@@ -41,7 +40,6 @@ const CartPage = () => {
             return;
         }
         try {
-            // Мы больше не передаем total_price, так как сервер считает его сам
             const orderData = {
                 store_id: selectedStore,
                 items: cartItems.map(item => ({
